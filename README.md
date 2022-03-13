@@ -22,4 +22,3 @@
 ## Non-Account Abstraction
 * How would this work at the moment with EOAs?:
 	* An EOA would have to sign a transaction every day for there to be a transfer. The automation would have to be handled like Gelato does with canExec and execPayload or ChainLink Keepers with checkUpkeep and performUpkeep on a non ERC 4337 smart contract wallet. This wallet has no way of executing code without an EOA calling and triggering the execution every time. The advantage of ERC 4337 smart contract wallet shines through here, as the user can be completely hands off after funding the wallet and all that is required is something who can pass the signature check to execute code without any direct calls of any smart contract functions or any EOAs (...private keys) required.
-* 	
