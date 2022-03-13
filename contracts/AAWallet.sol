@@ -7,7 +7,8 @@ contract AAWallet {
     // state variables.
     address payable public owner; // the controller of the wallet.
     address payable public automator = payable(0x2D57E5E2bb5ea3BCd001668e3dEf98b6EE040E5E); // my dev wallet.
-    address payable public immutable entryPoint = payable(); // the EntryPoint contract I have deployed to Goerli.
+    // TODO: CHANGE THIS TO DEPLOYED ENTRY POINT ADDRESS!!
+    address payable public immutable entryPoint = payable(0x2D57E5E2bb5ea3BCd001668e3dEf98b6EE040E5E); // the EntryPoint contract I have deployed to Goerli.
     uint private nonce; // the wallet nonce against double spending.
     bool private paymentAllowed;
 
@@ -48,19 +49,25 @@ contract AAWallet {
     // core ERC 4337 execution function:
     // called by entryPoint, only after validateUserOp succeeded.
     // assume that for this simple example, the only execution logic is to automate a payment every day.
-    function executionFromEntryPoint(address dest, uint value) external onlyEntryPoint {
+    function executionFromEntryPoint(bytes memory callData) external onlyEntryPoint {
+        // unpacking callData.
+        address dest;
+        uint value;
+        (dest, value) = abi.decode(callData, (address, uint));
+
+        // main execution.
         require(paymentAllowed == true, "Automator has to allow payment before it is carried out!");
         _call(dest, value);
 
-        // automatic payment complete so time to set the paymentAllowed flag to false;
+        // automatic payment complete so time to set the paymentAllowed flag to false.
         paymentAllowed = false;
     }
-
+            
     // wallet core functionality:
     function _call(address payee, uint value) private {
         // sending empty data for simplicity.
         // value is almost certainly in WEI.
-        (bool success, bytes memory result) = payee.call{value : value}("");
+        (bool success, ) = payee.call{value : value}("");
         require(success, "Failed to send Ether!");
     }
 
@@ -75,7 +82,7 @@ contract AAWallet {
     }
 
     // getBalance getter.
-    function getBalance() external returns(uint) {
+    function getBalance() external view returns(uint) {
         uint balance = address(this).balance;
         return balance;
     }
