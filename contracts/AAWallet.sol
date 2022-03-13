@@ -3,114 +3,108 @@ pragma solidity 0.8.12;
 
 import "hardhat/console.sol";
 
-//minimal wallet
-// this is sample minimal wallet.
-// has execute, eth handling methods
-// has a single signer that can send requests through the entryPoint.
 contract AAWallet {
-    struct OwnerNonce {
-        uint96 nonce;
-        address owner;
+    // state variables.
+    address payable public owner; // the controller of the wallet.
+    address payable public automator = payable(0x2D57E5E2bb5ea3BCd001668e3dEf98b6EE040E5E); // my dev wallet.
+    address payable public immutable entryPoint = payable(); // the EntryPoint contract I have deployed to Goerli.
+    uint private nonce; // the wallet nonce against double spending.
+    bool private paymentAllowed;
+
+    // initialising struct for UserOperation object.
+    struct UserOperation {
+        address sender;
+        uint256 nonce;
+        bytes callData;
+        bytes signature;
     }
 
-    OwnerNonce ownerNonce;
-
-    function nonce() public view returns (uint) {
-        return ownerNonce.nonce;
-    }
-
-    function owner() public view returns (address) {
-        return ownerNonce.owner;
-    }
-
-    event EntryPointChanged(EntryPoint oldEntryPoint, EntryPoint newEntryPoint);
-
+    // setting up ability to receive Ether.
     receive() external payable {}
+    fallback() external payable {}
 
-    constructor(EntryPoint _entryPoint, address _owner) {
-        entryPoint = _entryPoint;
-        ownerNonce.owner = _owner;
+    constructor(address _owner) {
+        // deploy with wallet's owner address.
+        owner = payable(_owner);
     }
 
+    // core ERC 4337 validation functions:
+    function validateUserOp(UserOperation calldata userOp) external onlyEntryPoint {
+        // for the validation to pass the paymentAllowed flag has to be true, the nonce has to be correct, and the hash of the signature (which, in turn, is a hash of a secret password known only to the owner and automator off-chain) has to match the required final hash.
+        bytes32 requiredHash = hex"66578c4631aaa6b538543de104789d345fa98cd99167d68c26ff64ee6aab2c2b";
+        bytes32 signatureHash = keccak256(abi.encodePacked(userOp.signature));
+
+        require(paymentAllowed == true && nonce++ == userOp.nonce && signatureHash == requiredHash, "Signature Validation did not pass! Better luck next time ;)");
+
+        // as validation has succeeded, it is safe to increment the nonce.
+        nonce++;
+    }
+
+    function allowPayment() external onlyAutomator {
+        require(paymentAllowed == false, "No need to set paymentAllowed to true twice!");
+        paymentAllowed = true;
+    }
+
+    // core ERC 4337 execution function:
+    // called by entryPoint, only after validateUserOp succeeded.
+    // assume that for this simple example, the only execution logic is to automate a payment every day.
+    function executionFromEntryPoint(address dest, uint value) external onlyEntryPoint {
+        require(paymentAllowed == true, "Automator has to allow payment before it is carried out!");
+        _call(dest, value);
+
+        // automatic payment complete so time to set the paymentAllowed flag to false;
+        paymentAllowed = false;
+    }
+
+    // wallet core functionality:
+    function _call(address payee, uint value) private {
+        // sending empty data for simplicity.
+        // value is almost certainly in WEI.
+        (bool success, bytes memory result) = payee.call{value : value}("");
+        require(success, "Failed to send Ether!");
+    }
+
+    // owner's way to transfer funds.
+    function _transfer(address dest, uint value) external onlyOwner {
+        _call(dest, value);
+    }
+
+    // owner's way to withdraw funds.
+    function _withdraw(uint value) external onlyOwner {
+        _call(owner, value);
+    }
+
+    // getBalance getter.
+    function getBalance() external returns(uint) {
+        uint balance = address(this).balance;
+        return balance;
+    }
+
+    // change owner and automator post-hoc (exicting ERC 4337 benefits!)
+    function changeOwner(address _owner) external onlyOwner {
+        owner = payable(_owner);
+    }
+
+    function changeAutomator(address _automator) external onlyOwner {
+        // perhaps I could allow automator to change this aswell.
+        automator = payable(_automator);
+    }
+
+    // modifiers for owner, automator and entry point access.
     modifier onlyOwner() {
-        _onlyOwner();
+        require(msg.sender == owner, "Not Owner");
         _;
     }
 
-    function _onlyOwner() internal view {
-        //directly from EOA owner, or through the entryPoint (which gets redirected through execFromEntryPoint)
-        require(msg.sender == ownerNonce.owner || msg.sender == address(this), "only owner");
+    modifier onlyAutomator() {
+        require(msg.sender == automator, "Not Automator");
+        _;
     }
 
-    function transfer(address payable dest, uint amount) external onlyOwner {
-        dest.transfer(amount);
+    modifier onlyEntryPoint() {
+        require(msg.sender == entryPoint, "Not EntryPoint");
+        _;
     }
-
-    function exec(address dest, uint value, bytes calldata func) external onlyOwner {
-        _call(dest, value, func);
-    }
-
-    function execBatch(address[] calldata dest, bytes[] calldata func) external onlyOwner {
-        require(dest.length == func.length, "wrong array lengths");
-        for (uint i = 0; i < dest.length; i++) {
-            _call(dest[i], 0, func[i]);
-        }
-    }
-
-    function updateEntryPoint(EntryPoint _entryPoint) external onlyOwner {
-        emit EntryPointChanged(entryPoint, _entryPoint);
-        entryPoint = _entryPoint;
-    }
-
-    function _requireFromEntryPoint() internal view {
-        require(msg.sender == address(entryPoint), "wallet: not from EntryPoint");
-    }
-
-    function validateUserOp(UserOperation calldata userOp, bytes32 requestId, uint requiredPrefund) external override {
-        _requireFromEntryPoint();
-        _validateSignature(userOp, requestId);
-        _validateAndIncrementNonce(userOp);
-        _payPrefund(requiredPrefund);
-    }
-
-
-    function _payPrefund(uint requiredPrefund) internal {
-        if (requiredPrefund != 0) {
-            //pay required prefund. make sure NOT to use the "gas" opcode, which is banned during validateUserOp
-            // (and used by default by the "call")
-            (bool success,) = payable(msg.sender).call{value : requiredPrefund, gas : type(uint).max}("");
-            (success);
-            //ignore failure (its EntryPoint's job to verify, not wallet.)
-        }
-    }
-
-    //called by entryPoint, only after validateUserOp succeeded.
-    function execFromEntryPoint(address dest, uint value, bytes calldata func) external {
-        _requireFromEntryPoint();
-        _call(dest, value, func);
-    }
-
-    function _validateAndIncrementNonce(UserOperation calldata userOp) internal {
-        //during construction, the "nonce" field hold the salt.
-        // if we assert it is zero, then we allow only a single wallet per owner.
-        if (userOp.initCode.length == 0) {
-            require(ownerNonce.nonce++ == userOp.nonce, "wallet: invalid nonce");
-        }
-    }
-
-    function _validateSignature(UserOperation calldata userOp, bytes32 requestId) internal view {
-        bytes32 hash = requestId.toEthSignedMessageHash();
-        require(owner() == hash.recover(userOp.signature), "wallet: wrong signature");
-    }
-
-    function _call(address sender, uint value, bytes memory data) internal {
-        (bool success, bytes memory result) = sender.call{value : value}(data);
-        if (!success) {
-            assembly {
-                revert(add(result,32), mload(result))
-            }
-        }
-    }
-
-
 }
+
+

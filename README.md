@@ -15,7 +15,7 @@
 * [X] Connect it properly to a .env file with the required information.
 ## Account Abstraction
 ~~* [ ] Get the ABI for the EntryPoint contract and connect it within your code.~~
-* [ ] Create a skeleton SimpleWallet.sol that contains:
+* [X] Create a skeleton SimpleWallet.sol that contains:
 	* function validateUserOp(UserOperation calldata userOp, bytes32 requestId, uint requiredPrefund):
 		* This function can contain any signature verification scheme, and implement a very simple way of checking if the UserOperation sent to the mempool is valid and therefore 'allows' handleOps in the entry point contract to call the wallets execution code i.e. transfer of ETH to a certain address.
 	* Key point: perhaps ignore gas for this basic implementation as it not super necessary to understand what is going on. This depends on how tricky it is to deploy a UserOperation object to the nodes on Goerli.
