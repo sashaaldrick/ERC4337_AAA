@@ -11,14 +11,17 @@
 
 **TODO**:
 ## Hardhat
-* [ ] Set up hardhat repo with all required plugins - but keep it minimal, connect it to Goerli.
-* [ ] Connect it properly to a .env file with the required information.
+* [X] Set up hardhat repo with all required plugins - but keep it minimal, connect it to Goerli.
+* [X] Connect it properly to a .env file with the required information.
 ## Account Abstraction
-* [ ] Get the ABI for the EntryPoint contract and connect it within your code.
+~~* [ ] Get the ABI for the EntryPoint contract and connect it within your code.~~
 * [ ] Create a skeleton SimpleWallet.sol that contains:
 	* function validateUserOp(UserOperation calldata userOp, bytes32 requestId, uint requiredPrefund):
 		* This function can contain any signature verification scheme, and implement a very simple way of checking if the UserOperation sent to the mempool is valid and therefore 'allows' handleOps in the entry point contract to call the wallets execution code i.e. transfer of ETH to a certain address.
 	* Key point: perhaps ignore gas for this basic implementation as it not super necessary to understand what is going on. This depends on how tricky it is to deploy a UserOperation object to the nodes on Goerli.
+* [ ] Create a very simple EntryPoint.sol that I deploy to act as a very simple ERC 4337 compliant entry point contract.
+* [ ] Create a bundler script that takes an argument of a UserOperation that, we shall say for simplicity, is already in the figurative mempool and carry out the handleOps call on the entry point contract that I have deployed. This is to mimic the full specification in ERC 4337 but in a very easy to follow way.
+
 ## Non-Account Abstraction
 * How would this work at the moment with EOAs?:
 	* An EOA would have to sign a transaction every day for there to be a transfer. The automation would have to be handled like Gelato does with canExec and execPayload or ChainLink Keepers with checkUpkeep and performUpkeep on a non ERC 4337 smart contract wallet. This wallet has no way of executing code without an EOA calling and triggering the execution every time. The advantage of ERC 4337 smart contract wallet shines through here, as the user can be completely hands off after funding the wallet and all that is required is something who can pass the signature check to execute code without any direct calls of any smart contract functions or any EOAs (...private keys) required.
