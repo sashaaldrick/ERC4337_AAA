@@ -7,10 +7,9 @@ contract AAWallet {
     // state variables.
     address payable public owner; // the controller of the wallet.
     address payable public automator = payable(0x2D57E5E2bb5ea3BCd001668e3dEf98b6EE040E5E); // my dev wallet.
-    // TODO: CHANGE THIS TO DEPLOYED ENTRY POINT ADDRESS!!
-    address payable public immutable entryPoint = payable(0x2D57E5E2bb5ea3BCd001668e3dEf98b6EE040E5E); // the EntryPoint contract I have deployed to Goerli.
-    uint private nonce; // the wallet nonce against double spending.
-    bool private paymentAllowed;
+    address payable public immutable entryPoint; // the EntryPoint contract address I have deployed to Goerli.
+    uint public nonce; // the wallet nonce against double spending.
+    // bool private paymentAllowed;
 
     // initialising struct for UserOperation object.
     struct UserOperation {
@@ -24,43 +23,51 @@ contract AAWallet {
     receive() external payable {}
     fallback() external payable {}
 
-    constructor(address _owner) {
+    constructor(address _owner, address _entryPoint) {
         // deploy with wallet's owner address.
         owner = payable(_owner);
+        entryPoint = payable(_entryPoint);
     }
 
     // core ERC 4337 validation functions:
     function validateUserOp(UserOperation calldata userOp) external onlyEntryPoint {
-        // for the validation to pass the paymentAllowed flag has to be true, the nonce has to be correct, and the hash of the signature (which, in turn, is a hash of a secret password known only to the owner and automator off-chain) has to match the required final hash.
-        bytes32 requiredHash = hex"66578c4631aaa6b538543de104789d345fa98cd99167d68c26ff64ee6aab2c2b";
-        bytes32 signatureHash = keccak256(abi.encodePacked(userOp.signature));
+        // for the signature validation scheme, the owner and the automator agree to a password off chain. That is then hashed by the automator and sent through as userOp.signature. The hash is stored on chain as it is a one-way function, and the hash value sent to chain is checked against the stored hash and then it can pass.
+        bytes32 requiredHash = 0x0c9acee3550ac5b50fe6a04a9e4818ca9a2574b50629278f2be407b4a7c4c8dd;
 
-        require(paymentAllowed == true && nonce++ == userOp.nonce && signatureHash == requiredHash, "Signature Validation did not pass! Better luck next time ;)");
+        // uint testNonce = nonce++;
+        // uint testSentInNonce = userOp.nonce;
+
+        require((nonce + 1) == userOp.nonce && bytes32(userOp.signature) == requiredHash, "Signature Validation did not pass! Better luck next time ;)");
 
         // as validation has succeeded, it is safe to increment the nonce.
         nonce++;
     }
 
-    function allowPayment() external onlyAutomator {
-        require(paymentAllowed == false, "No need to set paymentAllowed to true twice!");
-        paymentAllowed = true;
-    }
+    // function allowPayment() external onlyAutomator {
+    //     // require(paymentAllowed == false, "No need to set paymentAllowed to true twice!");
+    //     paymentAllowed = true;
+    // }
 
     // core ERC 4337 execution function:
     // called by entryPoint, only after validateUserOp succeeded.
     // assume that for this simple example, the only execution logic is to automate a payment every day.
     function executionFromEntryPoint(bytes memory callData) external onlyEntryPoint {
         // unpacking callData.
-        address dest;
-        uint value;
-        (dest, value) = abi.decode(callData, (address, uint));
+        address destination;
+        uint amount;
+        (destination, amount) = abi.decode(callData, (address, uint));
 
         // main execution.
-        require(paymentAllowed == true, "Automator has to allow payment before it is carried out!");
-        _call(dest, value);
+        // require(paymentAllowed == true, "Automator has to allow payment before it is carried out!");
+        _call(destination, amount);
 
         // automatic payment complete so time to set the paymentAllowed flag to false.
-        paymentAllowed = false;
+        // paymentAllowed = false;
+    }
+
+    // get current nonce
+    function getNonce() public view returns(uint){
+        return nonce;
     }
             
     // wallet core functionality:

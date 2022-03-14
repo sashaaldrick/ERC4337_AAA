@@ -13,7 +13,7 @@ contract EntryPoint {
     // core ERC 4337 entry point functions:
     function handleOps(UserOperation[] calldata userOps) external {
 
-        for (uint i = 0; i < userOps.length; i++) 
+        for (uint i = 0; i < userOps.length; i++) {
             UserOperation memory userOp = userOps[i];
             address sender = userOp.sender;
             bytes memory callData = userOp.callData;
@@ -35,8 +35,8 @@ contract EntryPoint {
                 revert FailedOp(revertReason);
             }
         }
-
     }
+    
 
     // a way for a bundler to simulate that validateUserOp is successful so it's worth their while to bundle that UserOperation into their handleOps call. 
     function simulateValidation(UserOperation calldata userOp) external {

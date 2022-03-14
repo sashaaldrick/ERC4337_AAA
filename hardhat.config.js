@@ -15,6 +15,20 @@ module.exports = {
     goerli: {
       url: `https://goerli.infura.io/v3/${INFURA_APIKEY}`,
       chainId: 5,
+      gas: 2100000, 
+      gasPrice: 8000000000
+    },
+    rinkeby: {
+      url: `https://rinkeby.infura.io/v3/${INFURA_APIKEY}`,
+      chainId: 4,
+      gas: 2100000, 
+      gasPrice: 8000000000
+    },
+    ropsten: {
+      url: `https://ropsten.infura.io/v3/${INFURA_APIKEY}`,
+      chainId: 3,
+      gas: 2100000, 
+      gasPrice: 8000000000
     }
   },
   etherscan: {

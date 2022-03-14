@@ -14,13 +14,14 @@ async function main() {
 
   // connect Contract Object created by hardhat from ABI with signer.
   const ContractWithSigner = await (
-    await hre.ethers.getContractFactory("Greeter")
+    await hre.ethers.getContractFactory("AAWallet")
   ).connect(wallet);
 
   // deploy contract and log address.
-  const contract = await ContractWithSigner.deploy("Hello, Hardhat");
+  // aldrick.eth is the owner, and the entry point contract address is passed through.
+  const contract = await ContractWithSigner.deploy("0x05992aab572feCe4e4319CC931BDe1a8b6601788", "0xa3eF83A8CFB516b7C3bcF4B91dcdEcaAb5ECE834"); 
   await contract.deployed();
-  console.log("Greeter deployed to:", contract.address);
+  console.log("AAWallet deployed to:", contract.address);
   
 }
 
