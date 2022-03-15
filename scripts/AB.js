@@ -3,7 +3,6 @@ const { ethers } = require("ethers");
 const keccak256 = require("keccak256");
 
 const UserOperation = require("./UserOperation");
-const { compileAndSave } = require("@ethereum-waffle/compiler");
 require('dotenv').config();
 
 // AB stands for 'Automator/Bundler' as this is what functionality this script aims to replicate.
@@ -78,8 +77,8 @@ async function bundler(userOp) {
 
     console.log("Funding account abstracted wallet @ " + deployedWalletAddress + "...");
 
-    // let tx = await wallet.sendTransaction(prefundTx);
-    // await tx.wait();
+    let tx = await wallet.sendTransaction(prefundTx);
+    await tx.wait();
 
     console.log("Bundler: Simulating validation via validateUserOp to see if it's worth to bundle it...");
     let simulateTx = await entryPointContract.simulateValidation(userOp);
