@@ -3,6 +3,7 @@ const { ethers } = require("ethers");
 const keccak256 = require("keccak256");
 
 const UserOperation = require("./UserOperation");
+const { compileAndSave } = require("@ethereum-waffle/compiler");
 require('dotenv').config();
 
 // AB stands for 'Automator/Bundler' as this is what functionality this script aims to replicate.
@@ -12,47 +13,51 @@ require('dotenv').config();
 // Automator: needs to send UserOperation object to the pool. For simplicity, it will just call the bundler function directly with the UserOperation object as an argument. For this we need to build the UserOperation object, including encoding the callData correctly.
 
 // Bundler: Once an object is received, it will call simulateValidation(UserOperation) on the entry point contract. 
-// Bundler: If this is successful, it will call handleOps(UserOperation) on the entry point contract.
+// Bundler: If this is successful, it will call handleOps(UserOperation) on the entry point contract, which if everything matches will execute the transfer.
 
-const deployedWalletAddress = "0xDF826469D6bbCc9224F5b7774aE4F58247249f34";
+const deployedWalletAddress = "0x333619469Cd4409468F2F91b90c2BEAf6A6C78dB";
+const entryPointAddress = "0xdd4D8f42b1B4a22FD5Ff3fb5EeE2B0d25ee1301f";
 
 async function automator() {
+
+    console.log("Hi Gelato Team!! 🍦");
+    console.log("Let's get some ERC 4337 action going...")
+    console.log("-----------------------------------------------------" + '\n');
     // UserOperation object stencil.
     // address sender;
     // uint256 nonce;
     // bytes callData;
     // bytes signature;
 
-    // building UserOperation object userOp.
-    // let deployedWalletAddress = "0x5C76CFe70AA6715589473A149410CFb1C32A2a62";
-    console.log("Automator: Getting current AAWallet nonce to build UserOperation object");
-    let nonce = await getNonce();
-    console.log(nonce);
-
     // encoding call data using low-level (lol) ethers functionality with AbiCoder: https://docs.ethers.io/v5/api/utils/abi/coder/#AbiCoder--methods
     let abiCoder = ethers.utils.defaultAbiCoder;
-    let destination = "0x05992aab572feCe4e4319CC931BDe1a8b6601788"; // aldrick.eth 
-    let amount = ethers.utils.parseUnits("0.05", "ether"); // this is the amount to automatically transfer
-    let callData = abiCoder.encode([ "string", "uint" ], [ destination, amount ]);
+    let destination = ethers.utils.getAddress("0x05992aab572feCe4e4319CC931BDe1a8b6601788");
+    console.log("Automator: AA Wallet is " + deployedWalletAddress);
+    let amount = ethers.utils.parseUnits("0.01", "ether"); // this is the amount to automatically transfer
+    let callData = abiCoder.encode([ "address", "uint" ], [ destination, amount ]);
     console.log("Automator: Building callData to allow for automatic transfer of ETH");
-    console.log(callData);
+    console.log("Calldata: " + callData);
 
     // need to encode the callData and the signature in good old hex.
     let password = "LetsGetAutomatedInHere";
     let hash = keccak256(password).toString('hex');
     let signature = "0x" + hash;
+    console.log("Automator: Generating signature to allow for verification and execution...");
+    console.log("Signature: " + signature);
 
+    let nonce = await getNonce();
+    // building UserOperation object userOp.
     var userOp = new UserOperation(deployedWalletAddress, nonce + 1, callData, signature);
+    console.log("-----------------------------------------------------" + '\n');
+    console.log("🍦🍦🍦");
 
     // call bundler with UserOperation object.
-    bundler(userOp);
+    return userOp;
 
 }
 
 async function bundler(userOp) {
-    // console.log("In Bundler Function");
-    // console.log("userOp: " + JSON.stringify(userOp));
-
+    console.log("-----------------------------------------------------" + '\n');
     // the Bundler has to connect to the chain to call simulateValidation on the entry point contract.
     // for simplicity, I've used the same account as the automator, as it does not really matter here.
     const privKey = process.env.DEVNET_PRIVKEY;
@@ -61,26 +66,41 @@ async function bundler(userOp) {
 
     // create wallet.
     let wallet = new ethers.Wallet(privKey, provider);
-    console.log('Bundler wallet address:', wallet.address);
 
     // connect to contracts 
-    const entryPointAddress = "0xa3eF83A8CFB516b7C3bcF4B91dcdEcaAb5ECE834";
     const entryPointContract = await hre.ethers.getContractAt("EntryPoint", entryPointAddress, wallet);
 
-    const aaWalletContract = await hre.ethers.getContractAt("AAWallet", deployedWalletAddress, wallet);
-
-    console.log("Simulating Validation...");
-    let simulateTx = await entryPointContract.simulateValidation(userOp);
-    let receipt = await simulateTx.wait();
-
-    // receipt.status = 1 if simulateValidation is successful or else 0.
-    if (receipt.status == 1) {
-        console.log("Simulation of validation succeeded, I know this is a good UserOperation object, so it is time to call handleOps(UserOperation)");
-        console.log("Calling handleOps(UserOperation)");
-        let handleOpsTx = await entryPointContract.handleOps([userOp]);
-        let executionReceipt = await handleOpsTx.wait();
+    // prefund AAWallet contract to cover gas and for automatic transfer.
+    let prefundTx = {
+        to: deployedWalletAddress,
+        value: ethers.utils.parseUnits("0.01", "ether")
     }
-    
+
+    console.log("Funding account abstracted wallet @ " + deployedWalletAddress + "...");
+
+    // let tx = await wallet.sendTransaction(prefundTx);
+    // await tx.wait();
+
+    console.log("Bundler: Simulating validation via validateUserOp to see if it's worth to bundle it...");
+    let simulateTx = await entryPointContract.simulateValidation(userOp);
+    let simulateReceipt = await simulateTx.wait();
+
+    // simulateReceipt.status = 1 if simulateValidation is successful or else 0.
+    if (simulateReceipt.status == 1) {
+        console.log("Bundler: Simulation of validation succeeded.");
+        console.log("Bundler: Calling handleOps(UserOperation) on the EntryPoint contract @ " + entryPointAddress + "...");
+
+        let handleOpsTx = await entryPointContract.handleOps([userOp]);
+        let handleOpsReceipt = await handleOpsTx.wait();
+        if (handleOpsReceipt.status == 1) {
+            console.log("ERC 4337: handleOps call was successful, automatic execution was carried out!! 🥇🥇🥇");
+            console.log("Check out the wallet's etherscan page here: " + "https://goerli.etherscan.io/address/" + deployedWalletAddress);
+        } else {
+            console.log("Oops-a-daisy! Something went wrong... ❌");
+            console.log("-----------------------------------------------------" + '\n');
+            console.log("handleOps receipt data: " + handleOpsReceipt);
+        }
+    }
 }
 
 async function getNonce() {
@@ -100,17 +120,15 @@ async function getNonce() {
     return currentNonce;
 }
 
-
+// run the automator to send the userOp to the active bundler.
 async function main() {
-    automator();
+    let userOp = await automator();
+    console.log(userOp);
+    console.log("🍦🍦🍦");
+    console.log("-----------------------------------------------------" + '\n');
+    console.log("Sending UserOperation object to the alternative mempool, UserOperationPool... 🏊");
+    console.log("Engaging bundler to listen in to UserOperationPool...👂");
+    bundler(userOp);
 }
-
-// leave this for now, but remember this can glitch with certain RPC errors.
-// main()
-//   .then(() => process.exit(0))
-//   .catch((error) => {
-//     console.error(error);
-//     process.exit(1);
-//   })
 
 main();

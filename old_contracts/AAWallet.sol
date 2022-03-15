@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
-import "./UserOperation.sol";
+import "hardhat/console.sol";
 
 contract AAWallet {
     // state variables.
@@ -9,6 +9,15 @@ contract AAWallet {
     address payable public automator = payable(0x2D57E5E2bb5ea3BCd001668e3dEf98b6EE040E5E); // my dev wallet.
     address payable public immutable entryPoint; // the EntryPoint contract address I have deployed to Goerli.
     uint public nonce; // the wallet nonce against double spending.
+    // bool private paymentAllowed;
+
+    // initialising struct for UserOperation object.
+    struct UserOperation {
+        address sender;
+        uint256 nonce;
+        bytes callData;
+        bytes signature;
+    }
 
     // setting up ability to receive Ether.
     receive() external payable {}
@@ -21,45 +30,56 @@ contract AAWallet {
     }
 
     // core ERC 4337 validation functions:
-    function validateUserOp(UserOperation calldata userOp, bool simulate) external onlyEntryPoint {
+    function validateUserOp(UserOperation calldata userOp) external onlyEntryPoint {
         // for the signature validation scheme, the owner and the automator agree to a password off chain. That is then hashed by the automator and sent through as userOp.signature. The hash is stored on chain as it is a one-way function, and the hash value sent to chain is checked against the stored hash and then it can pass.
         bytes32 requiredHash = 0x0c9acee3550ac5b50fe6a04a9e4818ca9a2574b50629278f2be407b4a7c4c8dd;
 
+        // uint testNonce = nonce++;
+        // uint testSentInNonce = userOp.nonce;
+
         require((nonce + 1) == userOp.nonce && bytes32(userOp.signature) == requiredHash, "Signature Validation did not pass! Better luck next time ;)");
 
-        // as validation has succeeded, it is safe to increment the nonce if we are not in a bundler simulateValidationc call.
-        if (simulate == false){
-            nonce++;
-        }
+        // as validation has succeeded, it is safe to increment the nonce.
+        nonce++;
     }
+
+    // function allowPayment() external onlyAutomator {
+    //     // require(paymentAllowed == false, "No need to set paymentAllowed to true twice!");
+    //     paymentAllowed = true;
+    // }
 
     // core ERC 4337 execution function:
     // called by entryPoint, only after validateUserOp succeeded.
     // assume that for this simple example, the only execution logic is to automate a payment every day.
-    function executionFromEntryPoint(bytes memory callData) external onlyEntryPoint returns(address payable destination, uint amount, bool success) {
-        // unpacking callData from encoded bytes representation.
-        address destinationNonPayable;
-        (destinationNonPayable, amount) = abi.decode(callData, (address, uint));
-        destination = payable(destinationNonPayable);
+    function executionFromEntryPoint(bytes memory callData) external onlyEntryPoint {
+        // unpacking callData.
+        address destination;
+        uint amount;
+        (destination, amount) = abi.decode(callData, (address, uint));
 
         // main execution.
-        success = _call(destination, amount);
+        // require(paymentAllowed == true, "Automator has to allow payment before it is carried out!");
+        _call(destination, amount);
 
-        return (destination, amount, success);
+        // automatic payment complete so time to set the paymentAllowed flag to false.
+        // paymentAllowed = false;
     }
 
+    // get current nonce
+    function getNonce() public view returns(uint){
+        return nonce;
+    }
+            
     // wallet core functionality:
-    // this is the main function used to transfer to a destination address. It is private as only executionFromEntryPoint should be able to call it or the owner of the wallet.
-    function _call(address payable destination, uint value) private returns(bool success) {
+    function _call(address payee, uint value) private {
         // sending empty data for simplicity.
         // value is almost certainly in WEI.
-        (success, ) = destination.call{value : value}("");
+        (bool success, ) = payee.call{value : value}("");
         require(success, "Failed to send Ether!");
-        return(success);
     }
 
     // owner's way to transfer funds.
-    function _transfer(address payable dest, uint value) external onlyOwner {
+    function _transfer(address dest, uint value) external onlyOwner {
         _call(dest, value);
     }
 
@@ -82,10 +102,6 @@ contract AAWallet {
     function changeAutomator(address _automator) external onlyOwner {
         // perhaps I could allow automator to change this aswell.
         automator = payable(_automator);
-    }
-
-    function getNonce() public view returns(uint){
-        return nonce;
     }
 
     // modifiers for owner, automator and entry point access.

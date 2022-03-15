@@ -19,7 +19,7 @@ async function main() {
 
   // deploy contract and log address.
   // aldrick.eth is the owner, and the entry point contract address is passed through.
-  const contract = await ContractWithSigner.deploy("0x05992aab572feCe4e4319CC931BDe1a8b6601788", "0xa3eF83A8CFB516b7C3bcF4B91dcdEcaAb5ECE834"); 
+  const contract = await ContractWithSigner.deploy("0x05992aab572feCe4e4319CC931BDe1a8b6601788", "0xa3Dc671792731195737686e942Ff923a1a0Bd436"); 
   await contract.deployed();
   console.log("AAWallet deployed to:", contract.address);
   
