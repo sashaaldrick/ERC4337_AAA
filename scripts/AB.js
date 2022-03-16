@@ -22,6 +22,9 @@ async function automator() {
     console.log("Hi Gelato Team!! 🍦");
     console.log("Let's get some ERC 4337 action going...")
     console.log("-----------------------------------------------------" + '\n');
+
+    await new Promise(resolve => setTimeout(resolve, 5000)); // setting a timer to make it a bit more presentable
+
     // UserOperation object stencil.
     // address sender;
     // uint256 nonce;
@@ -125,8 +128,10 @@ async function main() {
     console.log(userOp);
     console.log("🍦🍦🍦");
     console.log("-----------------------------------------------------" + '\n');
+    await new Promise(resolve => setTimeout(resolve, 15000));
     console.log("Sending UserOperation object to the alternative mempool, UserOperationPool... 🏊");
     console.log("Engaging bundler to listen in to UserOperationPool...👂");
+    await new Promise(resolve => setTimeout(resolve, 10000));
     bundler(userOp);
 }
 
