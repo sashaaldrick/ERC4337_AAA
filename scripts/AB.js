@@ -35,7 +35,7 @@ async function automator() {
     let abiCoder = ethers.utils.defaultAbiCoder;
     let destination = ethers.utils.getAddress("0x05992aab572feCe4e4319CC931BDe1a8b6601788");
     console.log("Automator: AA Wallet is " + deployedWalletAddress);
-    let amount = ethers.utils.parseUnits("0.01", "ether"); // this is the amount to automatically transfer
+    let amount = ethers.utils.parseUnits("0.04", "ether"); // this is the amount to automatically transfer
     let callData = abiCoder.encode([ "address", "uint" ], [ destination, amount ]);
     console.log("Automator: Building callData to allow for automatic transfer of ETH");
     console.log("Calldata: " + callData);
@@ -53,7 +53,6 @@ async function automator() {
     console.log("-----------------------------------------------------" + '\n');
     console.log("🍦🍦🍦");
 
-    // call bundler with UserOperation object.
     return userOp;
 
 }
@@ -75,7 +74,7 @@ async function bundler(userOp) {
     // prefund AAWallet contract to cover gas and for automatic transfer.
     let prefundTx = {
         to: deployedWalletAddress,
-        value: ethers.utils.parseUnits("0.01", "ether")
+        value: ethers.utils.parseUnits("0.05", "ether")
     }
 
     console.log("Funding account abstracted wallet @ " + deployedWalletAddress + "...");
